@@ -1,18 +1,41 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <title>ページのタイトル</title>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>Qwen ローカルAIチャット</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
+        textarea { width: 100%; height: 100px; margin-bottom: 10px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        #result { margin-top: 20px; padding: 15px; background: #f8f9fa; border-left: 5px solid #007bff; white-space: pre-wrap; }
+    </style>
 </head>
- <!-- main -->
 <body>
-  <main id="main">
-      <h1>見出しです</h1>
-      <p>ここに本文が入ります</p>
-  </main>
- <!-- footer -->
-    <footer role="contentinfo">
-    </footer>
+    <h1>Qwen ローカルAIチャット</h1>
+    <textarea id="userInput" placeholder="Qwenに何か質問してみてね..."></textarea>
+    <button onclick="sendToAI()">送信する</button>
+
+    <div id="result">AIの回答がここに表示されます。</div>
+
+    <script>
+        async def sendToAI() {
+            const input = document.getElementById("userInput").value;
+            const resultDiv = document.getElementById("result");
+            resultDiv.innerText = "思考中...";
+
+            // FastAPI（Python）の /chat 窓口にデータを送信
+            const formData = new FormData();
+            formData.append("message", input);
+
+            const response = await fetch("/chat", {
+                method: "POST",
+                body: formData
+            });
+            const data = await response.json();
+            
+            // 返ってきたAIの返答を画面に反映（動きをつける部分）
+            resultDiv.innerText = data.reply;
+        }
+    </script>
 </body>
 </html>
