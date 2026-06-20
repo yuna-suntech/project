@@ -31,9 +31,10 @@ import base64
 import json
 import time
 import requests
+import os
 
 
-GEMINI_API_KEY = "AQ.Ab8RN6Kap7QgRTgMemB-82_NzKXO48Lr-"  #APIキー
+api_key = os.environ.get("GEMINI_API_KEY")   #APIキー
 MODEL_NAME = "gemini-2.5-flash"  # 画像解析用の高性能・高速モデル
 
 
