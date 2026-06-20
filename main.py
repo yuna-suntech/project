@@ -3,6 +3,17 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import ollama
 
+import base64
+import json
+import time
+import requests
+
+
+GEMINI_API_KEY = "AQ.Ab8RN6KjH-WUprpZ82Txj35uqB7RmDtJjac5dY44HLELpJd62g"
+MODEL_NAME = "gemini-2.5-flash"  
+MODEL_NAME2 = "qwen3.7"
+
+
 app = FastAPI()
 
 # 1. 最初にアクセスした時に表示するHTML画面を返す
