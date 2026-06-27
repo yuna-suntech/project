@@ -1,117 +1,154 @@
-from fastapi import FastAPI, Form
+import io
+import re
+import json
+import time
+import base64
+import matplotlib.pyplot as plt
+from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-import ollama
-
-
+from fastapi.templating import Jinja2Templates
+from google import genai
+from PIL import Image
 
 app = FastAPI()
 
-# 1. 最初にアクセスした時に表示するHTML画面を返す
-@app.get("/", response_class=HTMLResponse)
-async def read_index():
-    with open("index.html", "r", encoding="utf-8") as f:
-        return f.read()
+# HTMLテンプレートの読み込み設定
+templates = Jinja2Templates(directory="templates")
 
-# 2. 画面から文字を受け取って、Qwenに投げて、結果を返すAPI
-@app.post("/chat")
-async def chat_with_qwen(message: str = Form(...)):
-    # Ollamaを通じてローカルのQwenを呼び出す
-    response = ollama.chat(model='qwen2.5:1.5b', messages=[
-        {'role': 'user', 'content': message}
-    ])
-    
-    # AIの返答テキストだけを画面に返す
-    return {"reply": response['message']['content']}
+# ==========================================
+# 設定エリア
+# ==========================================
+# 実績のある正しいAPIキー
+API_KEY = "AQ.Ab8RN6KjH-WUprpZ82Txj35uqB7RmDtJjac5dY44HLELpJd62g"
+MODEL_NAME = "gemini-2.0-flash"
+# ==========================================
 
-
-
-
-import base64
-import json
-import time
-import requests
-import os
+# Geminiクライアントの初期化
+try:
+    client = genai.Client(api_key=API_KEY)
+except Exception as e:
+    print(f"クライアントの初期化に失敗しました: {e}")
+    client = None
 
 
-api_key = os.environ.get("GEMINI_API_KEY")   #APIキー
-MODEL_NAME = "gemini-2.5-flash"  # 画像解析用の高性能・高速モデル
+def analyze_image_colors_io(img_bytes):
+    """アップロードされた画像（バイトデータ）をAIに送り、色分析結果を返す"""
+    if not client:
+        return None, "APIクライアントが初期化されていません。APIキーを確認してください。"
 
+    try:
+        # メモリ上の画像データをPillowで開く
+        img = Image.open(io.BytesIO(img_bytes))
+    except Exception as e:
+        return None, f"画像の読み込みに失敗しました: {e}"
 
-# 1. 最初にアクセスした時に表示するHTML画面を返す
-@app.get("/", response_class=HTMLResponse)
-async def read_index():
-    with open("index.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-#画像を受け取る
-IMAGE_PATH = "mano.png"  #イラスト
-
-def encode_image(image_path):
-    #画像を文字形式に変換する関数
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
-
-
-
-def run_experiment():
-    base64_image = encode_image(IMAGE_PATH)
-
-    # Gemini APIのエンドポイントURL
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={GEMINI_API_KEY}"
-
-    #プロンプト
-    prompt_text = (
-        "このイラストを分析し、以下の要素について、視覚的にイメージしやすい分かりやすい表現で詳細に教えてください。\n"
-        "・人物の性別、髪型、服装、表情、ポーズ\n"
-        "・背景（どこにいるか、何が描かれているか、どのようなモチーフが描かれているのか 等）"
+    prompt = (
+        "この画像で使われている主な色を抽出し、その使用面積の割合（%）を計算してください。\n"
+        "出力は必ず以下のようなJSON配列のフォーマットだけにしてください。余計な解説文や挨拶、` ```json ` のようなマークダウンの枠も一切不要です。\n"
+        "[\n"
+        "  {\"color\": \"#FF0000\", \"percentage\": 40},\n"
+        "  {\"color\": \"#0000FF\", \"percentage\": 30}\n"
+        "]"
     )
 
-    # Gemini APIに送るデータ構造（ペイロード）の作成
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt_text},
-                    {
-                        "inlineData": {
-                            "mimeType": "image/jpeg",  # ※JPEG画像なら image/jpeg にしてください
-                            "data": base64_image,
-                        }
-                    },
-                ]
-            }
-        ]
-    }
+    max_retries = 3
+    retry_delay = 40
 
-    # Googleのサーバーにリクエストを送信
-    response = requests.post(url, json=payload)
-
-    # すべての処理が終わった時間を記録
-    end_time = time.time()
-
-    if response.status_code == 200:
-        result = response.json()
+    for attempt in range(max_retries):
         try:
-            # Geminiから返ってきたテキスト部分を抽出
-            ai_response = result["candidates"][0]["content"]["parts"][0]["text"]
-
-            print("\n" + "=" * 50)
-            print("🎯 【実験結果：Geminiによるイラスト分析（日本語）】")
-            print("=" * 50)
-            print(ai_response)
-            print("=" * 50)
-
-            # かかった秒数を計算
-            elapsed_time = end_time - start_time
-            print(f"⚡ 【実験結果：速度】全体の処理にかかった時間: {elapsed_time:.2f} 秒")
-            print("=" * 50)
-
-        except (KeyError, IndexError):
-            print("❌ レスポンスの解析に失敗しました。構造が変更された可能性があります。")
-            print(json.dumps(result, indent=2, ensure_ascii=False))
-    else:
-        print(f"❌ Gemini APIでエラーが発生しました。ステータスコード: {response.status_code}")
-        print(response.text)
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=[img, prompt]
+            )
+            return response.text.strip(), None
+        except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                if attempt < max_retries - 1:
+                    print(f"→ 429エラー検知。{retry_delay}秒待機して再試行します...")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    return None, "無料枠の制限（429）を超えました。約1分後に再度お試しください。"
+            else:
+                return None, f"APIエラーが発生しました: {e}"
+    return None, "予期せぬエラーが発生しました。"
 
 
+def generate_chart_base64(json_text):
+    """JSONテキストから円グラフを描画し、HTML埋め込み用のBase64文字列に変換する"""
+    try:
+        cleaned_json = json_text
+        if "```" in cleaned_json:
+            cleaned_json = re.sub(r'```json|```', '', cleaned_json).strip()
+        color_data = json.loads(cleaned_json)
+    except Exception as e:
+        return None, f"AIの出力データを解析できませんでした (JSONエラー): {e}"
+
+    try:
+        colors = [d['color'] for d in color_data]
+        percentages = [d['percentage'] for d in color_data]
+        labels = [f"{d['color']} ({d['percentage']}%)" for d in color_data]
+
+        # 円グラフの描画
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.pie(percentages, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, counterclock=False)
+        ax.axis('equal')
+        plt.title("Detailed Color Composition")
+        plt.tight_layout()
+
+        # グラフを保存せず、メモリ上で画像データ（PNG）に変換
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png')
+        plt.close()
+        buf.seek(0)
+        
+        # HTMLに直接表示できる形式（Base64文字列）にエンコード
+        img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        return img_base64, None
+    except Exception as e:
+        return None, f"グラフの描画中にエラーが発生しました: {e}"
+
+
+# --- Webページのルーティング（画面の制御） ---
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    """初期画面を表示する（GETリクエスト）"""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.post("/analyze", response_class=HTMLResponse)
+async def analyze(request: Request, file: UploadFile = File(...)):
+    """画像がアップロードされた時の処理（POSTリクエスト）"""
+    if not file.filename:
+        return templates.TemplateResponse("index.html", {"request": request, "error": "ファイルが選択されていません。"})
+
+    # アップロードされた画像データを読み込む
+    contents = await file.read()
+    
+    # 1. Geminiで色を分析
+    json_result, error = analyze_image_colors_io(contents)
+    if error:
+        return templates.TemplateResponse("index.html", {"request": request, "error": error})
+
+    # 2. 分析結果からグラフ（Base64）を生成
+    chart_image, chart_error = generate_chart_base64(json_result)
+    if chart_error:
+        return templates.TemplateResponse("index.html", {"request": request, "error": chart_error})
+
+    # 3. 結果をHTMLテンプレートに渡して画面を表示
+    return templates.TemplateResponse(
+        "index.html", 
+        {
+            "request": request, 
+            "chart_image": chart_image, 
+            "raw_json": json_result
+        }
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    # サーバーを起動 (http://127.0.0.1:8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

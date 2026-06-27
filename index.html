@@ -2,39 +2,131 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Qwen ローカルAIチャット</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 画像色分析アプリ</title>
     <style>
-        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
-        textarea { width: 100%; height: 100px; margin-bottom: 10px; }
-        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
-        #result { margin-top: 20px; padding: 15px; background: #f8f9fa; border-left: 5px solid #007bff; white-space: pre-wrap; }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .upload-section {
+            border: 2px dashed #cbd5e1;
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 6px;
+            background: #f8fafc;
+            margin-bottom: 20px;
+        }
+        .file-input {
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .error-box {
+            color: #e74c3c;
+            background: #fde8e8;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #e74c3c;
+        }
+        .loading {
+            display: none;
+            color: #7f8c8d;
+            font-style: italic;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        .result-section {
+            margin-top: 40px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 30px;
+        }
+        .result-image {
+            max-width: 100%;
+            height: auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border-radius: 6px;
+            margin-bottom: 30px;
+        }
+        pre {
+            background: #2d3748;
+            color: #fff;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: left;
+            overflow-x: auto;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
-    <h1>Qwen ローカルAIチャット</h1>
-    <textarea id="userInput" placeholder="Qwenに何か質問してみてね..."></textarea>
-    <button onclick="sendToAI()">送信する</button>
+    <div class="container">
+        <h1>🎨 Gemini 画像色分析 Webアプリ</h1>
+        
+        {% if error %}
+        <div class="error-box">
+            <strong>エラー:</strong> {{ error }}
+        </div>
+        {% endif %}
 
-    <div id="result">AIの回答がここに表示されます。</div>
+        <div class="upload-section">
+            <form action="/analyze" method="post" enctype="multipart/form-data" onsubmit="showLoading()">
+                <input type="file" name="file" accept="image/*" class="file-input" required>
+                <br>
+                <button type="submit" class="btn">画像をアップロードして分析</button>
+            </form>
+            <div id="loading" class="loading">
+                🔄 Geminiが解析中＆グラフを作成しています...<br>
+                (無料枠の制限にかかった場合は自動で約40秒待機します。そのままお待ちください)
+            </div>
+        </div>
+
+        {% if chart_image %}
+        <div class="result-section">
+            <h2>📊 生成されたカラーサークル</h2>
+            <img class="result-image" src="data:image/png;base64,{{ chart_image }}" alt="Color Circle Chart">
+            
+            <h2>📄 AIからの返答データ (JSON)</h2>
+            <pre><code>{{ raw_json }}</code></pre>
+        </div>
+        {% endif %}
+    </div>
 
     <script>
-        async def sendToAI() {
-            const input = document.getElementById("userInput").value;
-            const resultDiv = document.getElementById("result");
-            resultDiv.innerText = "思考中...";
-
-            // FastAPI（Python）の /chat 窓口にデータを送信
-            const formData = new FormData();
-            formData.append("message", input);
-
-            const response = await fetch("/chat", {
-                method: "POST",
-                body: formData
-            });
-            const data = await response.json();
-            
-            // 返ってきたAIの返答を画面に反映（動きをつける部分）
-            resultDiv.innerText = data.reply;
+        // ボタンが押されたら「解析中...」の文字を表示するJavaScript
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
         }
     </script>
 </body>
